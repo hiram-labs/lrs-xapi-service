@@ -1,0 +1,176 @@
+name: Integration Suite
+
+on: ['push']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NPM_CONFIG_LOGLEVEL: warn
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+
+      - name: Installing Dependencies
+        run: npm ci
+
+      - name: Compiling Code
+        run: npm run build
+
+      - name: Linting Code
+        run: npm run lint
+
+  test-local:
+    name: Test Local
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WINSTON_CONSOLE_LEVEL: none
+      EXPRESS_PORT: 1337
+
+    services:
+      mongodb:
+        image: mongo:4.4
+        env:
+          MONGO_INITDB_DATABASE: test
+          ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 27017:27017
+        options: --health-cmd="mongo" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      redis:
+        image: redis:4.0
+        env:
+          REDIS_DATABASE: test
+          ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+
+      - name: Installing Dependencies
+        run: npm ci
+
+      - name: Compiling Code
+        run: npm run build
+
+      - name: Mocha Tests
+        run: npm run cover:local:ci
+
+  # test-s3:
+  #   name: Test S3
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   env:
+  #     WINSTON_CONSOLE_LEVEL: none
+  #     EXPRESS_PORT: 1337
+  #     STORAGE_REPO: s3
+  #     SUB_FOLDER_ACTIVITIES: gha/$GITHUB_RUN_NUMBER_$GITHUB_RUN_ATTEMPT
+  #     SUB_FOLDER_AGENTS: SUB_FOLDER_AGENTS=gha/$GITHUB_RUN_NUMBER_$GITHUB_RUN_ATTEMPT
+  #     SUB_FOLDER_STATE: gha/$GITHUB_RUN_NUMBER_$GITHUB_RUN_ATTEMPT
+  #     SUB_FOLDER_STATEMENTS: gha/$GITHUB_RUN_NUMBER_$GITHUB_RUN_ATTEMPT
+  #     FS_S3_REGION: ${{ secrets.FS_S3_REGION }}
+  #     FS_S3_BUCKET: ${{ secrets.FS_S3_BUCKET }}
+  #     FS_S3_ACCESS_KEY_ID: ${{ secrets.FS_S3_ACCESS_KEY_ID }}
+  #     FS_S3_SECRET_ACCESS_KEY: ${{ secrets.FS_S3_SECRET_ACCESS_KEY }}
+
+  #   services:
+  #     mongodb:
+  #       image: mongo:4.4
+  #       env:
+  #         MONGO_INITDB_DATABASE: test
+  #         ALLOW_EMPTY_PASSWORD: yes
+  #       ports:
+  #         - 27017:27017
+  #       options: --health-cmd="mongo" --health-interval=10s --health-timeout=5s --health-retries=5
+
+  #     redis:
+  #       image: redis:4.0
+  #       env:
+  #         REDIS_DATABASE: test
+  #         ALLOW_EMPTY_PASSWORD: yes
+  #       ports:
+  #         - 6379:6379
+  #       options: --health-cmd="redis-cli ping"
+
+  #   steps:
+  #     - uses: actions/checkout@v3
+
+  #     - uses: actions/setup-node@v3
+  #       with:
+  #         node-version: '16'
+  #         cache: 'npm'
+
+  #     - name: Installing Dependencies
+  #       run: npm ci
+
+  #     - name: Compiling Code
+  #       run: npm run build
+
+  #     - name: Mocha Tests S3
+  #       run: npm run cover:s3:ci
+
+  test-conformance:
+    name: Test Conformance
+    needs: test-local
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      WINSTON_CONSOLE_LEVEL: none
+      EXPRESS_PORT: 1337
+
+    services:
+      mongodb:
+        image: mongo:4.4
+        env:
+          MONGO_INITDB_DATABASE: test
+          ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 27017:27017
+        options: --health-cmd="mongo" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      redis:
+        image: redis:4.0
+        env:
+          REDIS_DATABASE: test
+          ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+
+      - name: Installing Dependencies
+        run: npm ci
+
+      - name: Compiling Code
+        run: npm run build
+
+      - name: Conformance Tests
+        run: ./test.sh

@@ -1,0 +1,14 @@
+.DS_STORE
+*.keyfile.json
+yarn-error.log
+pids/
+/.env
+/.nyc_output
+/dist
+/node_modules
+/notes.md
+/npm-debug.log
+/storage
+/.eslintcache
+.idea
+coverage
